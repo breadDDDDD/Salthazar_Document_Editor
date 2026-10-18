@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>DocStudio</title>
+  <link rel="icon" href="icon-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="icon-256.png" type="image/png" sizes="256x256">
+  <link rel="apple-touch-icon" href="icon-256.png">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="word.css">
+  <link rel="stylesheet" href="pdfeditor.css">
+  <script defer src="vendor/pdfjs/pdf.min.js"></script>
+  <script defer src="app.js"></script>
+  <script defer src="word.js"></script>
+  <script defer src="pdfeditor.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to document</a>
+
+  <header class="appbar">
+    <div class="appbar-brand" aria-hidden="true"><img src="icon-64.png" alt="" width="28" height="28"><span>DocStudio</span></div>
+    <div class="doc-tabs" role="tablist" id="doc-tabs" aria-label="Open documents">
+      <button type="button" role="tab" class="doc-tab home-tab" id="tab-home" aria-controls="home" aria-selected="true">
+        <span class="doc-tab-icon" aria-hidden="true">🏠</span><span class="doc-tab-name">Home</span>
+      </button>
+    </div>
+    <div class="appbar-actions">
+      <button type="button" class="icon-btn" id="btn-new" aria-label="New Word document" title="New Word document (Ctrl+N)">＋</button>
+      <button type="button" class="icon-btn" id="btn-open" aria-label="Open file" title="Open file (Ctrl+O)">📂</button>
+      <button type="button" class="icon-btn" id="btn-settings" aria-label="Settings" title="Settings (accessibility, theme, size)">⚙</button>
+      <button type="button" class="icon-btn" id="btn-help" aria-label="Keyboard shortcuts and help" title="Keyboard shortcuts and help (F1)">?</button>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <section role="tabpanel" id="home" class="home" aria-labelledby="tab-home">
+      <div class="home-inner">
+        <h1>DocStudio</h1>
+        <p class="home-sub">Edit Word documents and PDFs on this computer. Nothing leaves your machine.</p>
+        <h2 class="visually-hidden">Start</h2>
+        <div class="tiles">
+          <button type="button" class="tile" id="tile-new-doc"><span class="tile-icon" aria-hidden="true">📝</span><span class="tile-title">New Word document</span><span class="tile-hint">Ctrl+N</span></button>
+          <button type="button" class="tile" id="tile-open"><span class="tile-icon" aria-hidden="true">📂</span><span class="tile-title">Open file…</span><span class="tile-hint">DOCX, PDF, TXT, MD, HTML, images · Ctrl+O</span></button>
+          <button type="button" class="tile" id="tile-images"><span class="tile-icon" aria-hidden="true">🖼</span><span class="tile-title">Create PDF from images</span><span class="tile-hint">Combine PNG or JPG files</span></button>
+          <button type="button" class="tile" id="tile-merge"><span class="tile-icon" aria-hidden="true">📚</span><span class="tile-title">Merge PDFs</span><span class="tile-hint">Join several PDFs into one</span></button>
+        </div>
+        <div class="drop-zone" id="drop-zone">
+          <span aria-hidden="true">⬇</span> Drop a file anywhere in this window to open it
+        </div>
+        <h2>Recent files</h2>
+        <ul class="recent-list" id="recent-list"></ul>
+        <p class="muted" id="recent-empty">No recent files yet.</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="toasts" id="toasts-polite" aria-live="polite" aria-atomic="false"></div>
+  <div class="toasts toasts-assertive" id="toasts-assertive" aria-live="assertive" role="alert"></div>
+  <div class="drop-overlay" id="drop-overlay" hidden><div>Drop to open</div></div>
+</body>
+</html>
