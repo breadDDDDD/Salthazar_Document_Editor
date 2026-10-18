@@ -1,0 +1,36 @@
+# Swarm coordination state
+.tazzyronth
+
+# Build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/dist/
+/bin/
+
+# Go test and profiling output
+*.test
+*.out
+coverage.*
+*.prof
+
+# Workspace files
+go.work
+go.work.sum
+
+# Editors and IDEs
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and temp files
+*.log
+*.tmp
