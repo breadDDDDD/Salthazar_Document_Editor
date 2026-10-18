@@ -1,0 +1,132 @@
+/* DocStudio PDF editor. Uses the tokens from app.css; annotation colors are document content. */
+
+.pdfe .pdfe-h { font-size: .95rem; margin: 0; }
+.pdfe-field { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; }
+.pdfe-find { width: 11rem; }
+.pdfe-pagenum { width: 4.5rem; }
+.pdfe-size { width: 4.5rem; }
+.pdfe-of, .pdfe-findcount { font-size: .85rem; color: var(--muted); padding: 0 .25rem; white-space: nowrap; }
+.pdfe-hint { color: var(--text); }
+
+/* ---------- thumbnails ---------- */
+.pdfe-thumbs-panel { width: 11.5rem; padding: .5rem; display: flex; flex-direction: column; gap: .5rem; }
+.pdfe-thumbs-head { display: flex; align-items: center; gap: .25rem; }
+.pdfe-thumbs-head .pdfe-h { flex: 1; }
+.pdfe-thumbs-head .tool-btn { border-color: var(--border); }
+.pdfe-thumbs { list-style: none; margin: 0; padding: 0 0 1rem; display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+.pdfe-thumb {
+  display: flex; flex-direction: column; align-items: center; gap: .25rem;
+  padding: .35rem; min-width: 36px; min-height: 36px; cursor: pointer; color: var(--text);
+  background: transparent; border: 2px solid transparent; border-radius: var(--radius);
+}
+.pdfe-thumb:hover { background: var(--surface-2); }
+.pdfe-thumb[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
+.pdfe-thumb[aria-current="page"] .pdfe-thumb-num { font-weight: 700; text-decoration: underline; }
+.pdfe-thumb.drop-before { box-shadow: 0 -4px 0 0 var(--accent); }
+.pdfe-thumb.drop-after { box-shadow: 0 4px 0 0 var(--accent); }
+.pdfe-thumb-img { display: block; width: 110px; background: var(--page-bg); box-shadow: 0 0 0 1px var(--border); overflow: hidden; }
+.pdfe-thumb-img canvas { display: block; width: 100%; height: 100%; }
+.pdfe-thumb-num { font-size: .85rem; }
+
+/* ---------- page area ---------- */
+.pdfe-scroll { position: relative; padding: 16px; }
+.pdfe-scroll:focus-visible { outline-offset: -3px; }
+.pdfe-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; min-width: min-content; }
+.pdfe-page { position: relative; flex: none; background: var(--page-bg); box-shadow: var(--shadow), 0 0 0 1px var(--border); }
+.pdfe-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.pdfe-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.pdfe-drawing .pdfe-layer { pointer-events: auto; cursor: crosshair; touch-action: none; }
+.pdfe[data-tool="text"] .pdfe-layer { cursor: text; }
+.pdfe[data-tool="note"] .pdfe-layer { cursor: copy; }
+.pdfe-drawing .pdfe-obj, .pdfe-hand .pdfe-obj { pointer-events: none; }
+.pdfe-hand .pdfe-scroll { cursor: grab; }
+.pdfe-hand.pdfe-grabbing .pdfe-scroll { cursor: grabbing; }
+.pdfe-hand .textLayer { pointer-events: none; }
+.pdfe-preview { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+
+/* overlay objects */
+.pdfe-obj { position: absolute; pointer-events: auto; cursor: move; touch-action: none; }
+.pdfe-obj:focus { outline: none; }
+.pdfe-obj:hover { box-shadow: 0 0 0 1px var(--focus); }
+.pdfe-obj.selected, .pdfe-obj:focus-within { box-shadow: 0 0 0 2px var(--focus); }
+.pdfe-obj:focus-visible { box-shadow: 0 0 0 3px var(--focus); }
+.pdfe-obj > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.pdfe-handle {
+  display: none; position: absolute; right: -9px; bottom: -9px; width: 18px; height: 18px;
+  background: var(--surface); border: 2px solid var(--focus); border-radius: 4px; cursor: nwse-resize;
+}
+.pdfe-obj.selected .pdfe-handle { display: block; }
+.pdfe-grip {
+  display: none; position: absolute; left: -2px; top: -28px; height: 26px; min-width: 28px; padding: 0 6px;
+  background: var(--focus); color: var(--bg); border-radius: 4px 4px 0 0;
+  font-size: 15px; line-height: 26px; text-align: center; cursor: move; user-select: none;
+}
+.pdfe-obj.selected .pdfe-grip, .pdfe-obj:focus-within .pdfe-grip { display: block; }
+.pdfe-obj .pdfe-ta {
+  position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0;
+  border: 0; border-radius: 0; background: transparent; resize: none; overflow: hidden;
+  white-space: pre-wrap; overflow-wrap: break-word; letter-spacing: normal; cursor: text;
+}
+.pdfe-obj .pdfe-ta:focus { outline: 1px dashed var(--focus); outline-offset: 0; }
+.pdfe-text { cursor: default; }
+.pdfe-note { background: #fff59d; border: 1px solid #b59f00; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); }
+.pdfe-note .pdfe-ta { color: #000; overflow: auto; }
+
+/* ---------- pdf.js text layer (subset of pdf_viewer.css 3.11) ---------- */
+.pdfe .textLayer {
+  position: absolute; text-align: initial; inset: 0; overflow: hidden; line-height: 1; z-index: 2;
+  -webkit-text-size-adjust: none; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0;
+}
+.pdfe .textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }
+.pdfe .textLayer span.markedContent { top: 0; height: 0; }
+.pdfe .textLayer ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.pdfe .textLayer br::selection { background: transparent; }
+.pdfe .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: -1; cursor: default; user-select: none; }
+.pdfe .textLayer .endOfContent.active { top: 0; }
+.pdfe .textLayer[data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
+.pdfe .textLayer[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
+.pdfe .textLayer[data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
+.pdfe .textLayer .pdfe-hit { background: rgba(255, 213, 0, .45); border-radius: 2px; }
+.pdfe .textLayer .pdfe-hit-cur { background: rgba(255, 120, 0, .55); outline: 2px solid var(--focus); }
+
+/* ---------- side panel ---------- */
+.pdfe-side { width: 19rem; padding: .75rem; }
+.pdfe-side-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
+.pdfe-side-head .pdfe-h:focus { outline: none; }
+.pdfe-side-head .pdfe-h:focus-visible { outline: 3px solid var(--focus); }
+.pdfe-form { display: flex; flex-direction: column; }
+.pdfe-form-row { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .75rem; }
+.pdfe-form-row input:not([type="checkbox"]), .pdfe-form-row select { width: 100%; }
+.pdfe-form-row label { font-weight: 600; }
+.pdfe-form-row.pdfe-check { flex-direction: row; align-items: center; gap: .5rem; }
+.pdfe-form-row.pdfe-check input { width: 22px; height: 22px; accent-color: var(--accent); }
+.pdfe-row { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+.pdfe-spacer { flex: 1; }
+.pdfe-error { color: var(--danger); margin: 0; min-height: 1.2em; }
+.pdfe-props { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .4rem .75rem; }
+.pdfe-props dt { font-weight: 600; }
+.pdfe-props dd { margin: 0; overflow-wrap: anywhere; }
+
+/* ---------- signature dialog ---------- */
+.pdfe-sig-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: .75rem; }
+.pdfe-sig-panel { min-height: 12rem; }
+.pdfe-sigpad {
+  display: block; width: 100%; height: auto; background: var(--page-bg);
+  border: 1px solid var(--border); border-radius: var(--radius); touch-action: none; cursor: crosshair;
+}
+.pdfe-sig-saved { display: block; max-width: 100%; max-height: 10rem; background: var(--page-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: .5rem; }
+.pdfe-sig input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
+
+/* ---------- print helper ---------- */
+.pdfe-print-frame { position: fixed; right: 0; bottom: 0; width: 0; height: 0; border: 0; }
+
+@media (max-width: 48rem) {
+  .pdfe-thumbs-panel { width: 8.5rem; }
+  .pdfe-thumb-img { width: 80px; }
+  .pdfe-side { width: 15rem; }
+}
+@media (forced-colors: active) {
+  .pdfe-obj.selected, .pdfe-obj:focus-within { outline: 2px solid Highlight; }
+  .pdfe-thumb[aria-pressed="true"] { outline: 2px solid Highlight; }
+}
