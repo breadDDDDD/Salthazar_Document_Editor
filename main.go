@@ -41,7 +41,9 @@ func main() {
 	fsapi.Register(mux)
 	docx.Register(mux)
 	pdfops.Register(mux)
-	mux.HandleFunc("POST /api/ping", heartbeat())
+	ping, bye := lifetime(!*noBrowser)
+	mux.HandleFunc("POST /api/ping", ping)
+	mux.HandleFunc("POST /api/bye", bye)
 
 	static, _ := fs.Sub(webFS, "web")
 	mux.Handle("/", http.FileServer(http.FS(static)))
@@ -79,28 +81,57 @@ func localOnly(addr string, next http.Handler) http.Handler {
 	})
 }
 
-// heartbeat returns a handler the UI pings every 10s. Once a window has
-// pinged, the process exits after 3 minutes without pings (all windows closed).
-func heartbeat() http.HandlerFunc {
+// lifetime returns the handlers that keep the process alive only while a
+// window is open. Each window pings every 10s with its id and says "bye" when
+// it closes. The process exits a few seconds after the last window closes, or
+// if a window stops pinging (browser killed), or if no window ever connects.
+func lifetime(expectWindow bool) (ping, bye http.HandlerFunc) {
+	const (
+		closeGrace   = 5 * time.Second  // lets a reload reconnect before exiting
+		pingTimeout  = 90 * time.Second // hidden windows may be throttled to 1 ping/min
+		startTimeout = 60 * time.Second // browser failed to open
+	)
 	var mu sync.Mutex
-	var last time.Time
+	windows := map[string]time.Time{}
+	started := time.Now()
+	var emptySince time.Time // zero until the first window connects
 	go func() {
-		for range time.Tick(5 * time.Second) {
+		for range time.Tick(time.Second) {
 			mu.Lock()
-			idle := !last.IsZero() && time.Since(last) > 3*time.Minute
+			now := time.Now()
+			for id, t := range windows {
+				if now.Sub(t) > pingTimeout {
+					delete(windows, id)
+				}
+			}
+			if len(windows) == 0 && emptySince.IsZero() && expectWindow && now.Sub(started) > startTimeout {
+				emptySince = started
+			}
+			exit := len(windows) == 0 && !emptySince.IsZero() && now.Sub(emptySince) > closeGrace
 			mu.Unlock()
-			if idle {
+			if exit {
 				log.Print("no open windows, exiting")
 				os.Exit(0)
 			}
 		}
 	}()
-	return func(w http.ResponseWriter, r *http.Request) {
+	ping = func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
-		last = time.Now()
+		windows[r.URL.Query().Get("id")] = time.Now()
+		emptySince = time.Time{}
 		mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 	}
+	bye = func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		delete(windows, r.URL.Query().Get("id"))
+		if len(windows) == 0 {
+			emptySince = time.Now()
+		}
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}
+	return ping, bye
 }
 
 // openBrowser opens url in an app-style window when Edge or Chrome is

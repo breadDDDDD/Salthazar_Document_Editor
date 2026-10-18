@@ -206,7 +206,7 @@ DocStudio handles everyday documents well: text, headings, lists, tables and pic
 That's normal for PDFs. See *"Change text that's already in a PDF"* above.
 
 **How do I close DocStudio completely?**
-Just close the window. DocStudio switches itself off in the background a few minutes later.
+Just close the window. DocStudio switches itself off within a few seconds — nothing keeps running in the background.
 
 ---
 

@@ -716,10 +716,13 @@
     window.addEventListener("beforeunload", (e) => {
       if (docs.some((d) => d.dirty)) { e.preventDefault(); e.returnValue = ""; }
     });
-    // Heartbeat: the server shuts down shortly after the last window closes.
-    const ping = () => fetch("/api/ping", { method: "POST" }).catch(() => {});
+    // Heartbeat: the server shuts down as soon as the last window closes.
+    const winId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const ping = () => fetch("/api/ping?id=" + winId, { method: "POST" }).catch(() => {});
     ping();
     setInterval(ping, 10000);
+    window.addEventListener("pagehide", () => navigator.sendBeacon("/api/bye?id=" + winId));
+    window.addEventListener("pageshow", (e) => { if (e.persisted) ping(); });
     const m = /^#open=(.+)$/.exec(location.hash);
     if (m) {
       let p = m[1];
