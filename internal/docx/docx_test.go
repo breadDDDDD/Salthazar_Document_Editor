@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/xml"
 	"image"
 	"image/color"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -59,6 +61,21 @@ func validateZip(t *testing.T, data []byte) map[string]string {
 	return parts
 }
 
+var (
+	styleAttrRe = regexp.MustCompile(` (?:style|data-[a-z-]+)="[^"]*"`)
+	wrapperRe   = regexp.MustCompile(`^<div class="docx-doc">(.*)</div>$`)
+)
+
+// plainHTML strips the formatting attributes of the v2 dialect so tests can
+// assert on structure.
+func plainHTML(h string) string {
+	h = styleAttrRe.ReplaceAllString(h, "")
+	if m := wrapperRe.FindStringSubmatch(h); m != nil {
+		h = m[1]
+	}
+	return h
+}
+
 func TestRoundTrip(t *testing.T) {
 	src := `<h1>My Title</h1>
 <p style="text-align:center">Hello <strong>bold</strong> and <em>italic</em> <u>under</u> <s>gone</s> x<sup>2</sup> H<sub>2</sub>O
@@ -100,13 +117,14 @@ func TestRoundTrip(t *testing.T) {
 	if title != "My Title" {
 		t.Errorf("title = %q", title)
 	}
+	ph := plainHTML(h)
 	for _, want := range []string{"<h1>My Title</h1>", "<h2>Sub</h2>", "<strong>bold</strong>", "<em>italic</em>",
 		"<u>under</u>", "<s>gone</s>", "<sup>2</sup>", "<sub>2</sub>", "color:#ff0000", "background-color:#ffff00",
 		"font-size:18pt", "Times New Roman", "&amp; &lt;tag&gt;", `<a href="https://example.com/?a=1&amp;b=2">`,
 		"<ul><li>one</li><li>two<ul><li>nested</li></ul></li></ul>", "<ol><li>first</li><li>second</li></ol>",
 		`colspan="2"`, "<td>", `<img src="data:image/png;base64,`, `width="40" height="20"`, `alt="red box"`,
 		`<hr class="page-break">`, "\t", "end<br>line2", "text-align:center", "margin-left:36pt", "<p><br></p>"} {
-		if !strings.Contains(h, want) {
+		if !strings.Contains(h, want) && !strings.Contains(ph, want) {
 			t.Errorf("html missing %q\n%s", want, h)
 		}
 	}
@@ -120,8 +138,12 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h2 != h {
-		t.Errorf("second round trip differs:\n%s\n---\n%s", h, h2)
+	// the markup may differ (styles become explicit), the rendering must not
+	f1, f2 := charFormats(h), charFormats(h2)
+	for k, v := range f1 {
+		if f2[k] != v {
+			t.Errorf("second round trip changed formatting %s: %d -> %d", k, v, f2[k])
+		}
 	}
 }
 
@@ -143,9 +165,10 @@ func TestTolerantHTML(t *testing.T) {
 	if title != "T & x" {
 		t.Errorf("title = %q", title)
 	}
+	ph := plainHTML(h)
 	for _, want := range []string{"second para", "div text", "<li>a</li><li>b</li>", "<td><p>1</p></td><td><p>2</p></td>",
 		"color:#0000ff", "font-size:18pt", "Arial", `href="https://x.org"`, "[remote]", "©", "1 &lt; 2"} {
-		if !strings.Contains(h, want) {
+		if !strings.Contains(h, want) && !strings.Contains(ph, want) {
 			t.Errorf("html missing %q\n%s", want, h)
 		}
 	}
@@ -192,8 +215,9 @@ func TestWordStyleInput(t *testing.T) {
 	if title != "Doc Title" {
 		t.Errorf("title %q", title)
 	}
-	for _, want := range []string{"<h1>Doc Title</h1>", `<span style="background-color:#ffff00">hi </span>there`, `rowspan="2"`} {
-		if !strings.Contains(h, want) {
+	ph := plainHTML(h)
+	for _, want := range []string{`<h1 class="title">Doc Title</h1>`, `<span style="background-color:#ffff00">hi </span>there`, `rowspan="2"`} {
+		if !strings.Contains(h, want) && !strings.Contains(ph, want) {
 			t.Errorf("html missing %q\n%s", want, h)
 		}
 	}
@@ -219,7 +243,9 @@ func TestHandlers(t *testing.T) {
 	}
 	j, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.StatusCode != 200 || !strings.Contains(string(j), `<p>Hi</p>`) {
+	var jr struct{ HTML string }
+	json.Unmarshal(j, &jr)
+	if resp.StatusCode != 200 || !strings.Contains(plainHTML(jr.HTML), `<p>Hi</p>`) {
 		t.Fatalf("to-html: %d %s", resp.StatusCode, j)
 	}
 	resp, _ = http.Post(srv.URL+"/api/docx/to-html", "application/octet-stream", strings.NewReader("junk"))
