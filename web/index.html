@@ -11,47 +11,61 @@
   <link rel="stylesheet" href="app.css">
   <link rel="stylesheet" href="word.css">
   <link rel="stylesheet" href="pdfeditor.css">
+  <link rel="stylesheet" href="slides.css">
   <script defer src="vendor/pdfjs/pdf.min.js"></script>
   <script defer src="app.js"></script>
   <script defer src="word.js"></script>
   <script defer src="pdfeditor.js"></script>
+  <script defer src="slides.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to document</a>
 
   <header class="appbar">
-    <div class="appbar-brand" aria-hidden="true"><img src="icon-64.png" alt="" width="28" height="28"><span>DocStudio</span></div>
+    <div class="appbar-brand" aria-hidden="true"><img src="icon-64.png" alt="" width="20" height="20"><span>DocStudio</span></div>
     <div class="doc-tabs" role="tablist" id="doc-tabs" aria-label="Open documents">
       <button type="button" role="tab" class="doc-tab home-tab" id="tab-home" aria-controls="home" aria-selected="true">
-        <span class="doc-tab-icon" aria-hidden="true">🏠</span><span class="doc-tab-name">Home</span>
+        <span class="doc-tab-icon" aria-hidden="true" data-icon="home" data-icon-size="16"></span><span class="doc-tab-name">Home</span>
       </button>
     </div>
     <div class="appbar-actions">
-      <button type="button" class="icon-btn" id="btn-new" aria-label="New Word document" title="New Word document (Ctrl+N)">＋</button>
-      <button type="button" class="icon-btn" id="btn-open" aria-label="Open file" title="Open file (Ctrl+O)">📂</button>
-      <button type="button" class="icon-btn" id="btn-settings" aria-label="Settings" title="Settings (accessibility, theme, size)">⚙</button>
-      <button type="button" class="icon-btn" id="btn-help" aria-label="Keyboard shortcuts and help" title="Keyboard shortcuts and help (F1)">?</button>
+      <button type="button" class="icon-btn" id="btn-new" aria-label="New Word document" title="New Word document (Ctrl+N)"><span data-icon="new" aria-hidden="true"></span></button>
+      <button type="button" class="icon-btn" id="btn-open" aria-label="Open file" title="Open file (Ctrl+O)"><span data-icon="open" aria-hidden="true"></span></button>
+      <span class="appbar-sep" aria-hidden="true"></span>
+      <button type="button" class="icon-btn" id="btn-settings" aria-label="Settings" title="Settings (accessibility, theme, size)"><span data-icon="settings" aria-hidden="true"></span></button>
+      <button type="button" class="icon-btn" id="btn-help" aria-label="Keyboard shortcuts and help" title="Keyboard shortcuts and help (F1)"><span data-icon="help" aria-hidden="true"></span></button>
     </div>
   </header>
 
   <main id="main" tabindex="-1">
     <section role="tabpanel" id="home" class="home" aria-labelledby="tab-home">
       <div class="home-inner">
-        <h1>DocStudio</h1>
-        <p class="home-sub">Edit Word documents and PDFs on this computer. Nothing leaves your machine.</p>
-        <h2 class="visually-hidden">Start</h2>
-        <div class="tiles">
-          <button type="button" class="tile" id="tile-new-doc"><span class="tile-icon" aria-hidden="true">📝</span><span class="tile-title">New Word document</span><span class="tile-hint">Ctrl+N</span></button>
-          <button type="button" class="tile" id="tile-open"><span class="tile-icon" aria-hidden="true">📂</span><span class="tile-title">Open file…</span><span class="tile-hint">DOCX, PDF, TXT, MD, HTML, images · Ctrl+O</span></button>
-          <button type="button" class="tile" id="tile-images"><span class="tile-icon" aria-hidden="true">🖼</span><span class="tile-title">Create PDF from images</span><span class="tile-hint">Combine PNG or JPG files</span></button>
-          <button type="button" class="tile" id="tile-merge"><span class="tile-icon" aria-hidden="true">📚</span><span class="tile-title">Merge PDFs</span><span class="tile-hint">Join several PDFs into one</span></button>
-        </div>
+        <header class="home-head">
+          <h1>DocStudio</h1>
+          <p class="home-sub">Open and edit documents, presentations and PDFs on this computer. Your files stay on this machine.</p>
+        </header>
+
+        <section class="home-section" aria-labelledby="h-new">
+          <h2 id="h-new">New</h2>
+          <div class="tiles">
+            <button type="button" class="tile" id="tile-new-doc" title="New Word document (Ctrl+N)"><span class="tile-icon ft-word" aria-hidden="true" data-icon="doc" data-icon-size="22"></span><span class="tile-text"><span class="tile-title">Blank document</span><span class="tile-hint">Word, Ctrl+N</span></span></button>
+            <button type="button" class="tile" id="tile-new-slides" hidden><span class="tile-icon ft-slides" aria-hidden="true" data-icon="pptx" data-icon-size="22"></span><span class="tile-text"><span class="tile-title">Blank presentation</span><span class="tile-hint">PowerPoint, 16:9</span></span></button>
+            <button type="button" class="tile" id="tile-open" title="Open file (Ctrl+O)"><span class="tile-icon" aria-hidden="true" data-icon="open" data-icon-size="22"></span><span class="tile-text"><span class="tile-title">Open…</span><span class="tile-hint">Word (.docx, .doc), PowerPoint (.pptx), PDF, text, images</span></span></button>
+            <button type="button" class="tile" id="tile-images"><span class="tile-icon ft-image" aria-hidden="true" data-icon="image" data-icon-size="22"></span><span class="tile-text"><span class="tile-title">PDF from images</span><span class="tile-hint">Combine PNG or JPG files</span></span></button>
+            <button type="button" class="tile" id="tile-merge"><span class="tile-icon ft-pdf" aria-hidden="true" data-icon="merge" data-icon-size="22"></span><span class="tile-text"><span class="tile-title">Merge PDFs</span><span class="tile-hint">Join several PDFs into one</span></span></button>
+          </div>
+        </section>
+
+        <section class="home-section" aria-labelledby="h-recent">
+          <h2 id="h-recent">Recent</h2>
+          <ul class="recent-list" id="recent-list"></ul>
+          <p class="recent-empty muted" id="recent-empty">Files you open or save appear here.</p>
+        </section>
+
         <div class="drop-zone" id="drop-zone">
-          <span aria-hidden="true">⬇</span> Drop a file anywhere in this window to open it
+          <span data-icon="upload" data-icon-size="18" aria-hidden="true"></span>
+          <span>Drop a file anywhere in this window to open it</span>
         </div>
-        <h2>Recent files</h2>
-        <ul class="recent-list" id="recent-list"></ul>
-        <p class="muted" id="recent-empty">No recent files yet.</p>
       </div>
     </section>
   </main>

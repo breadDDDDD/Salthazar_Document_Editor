@@ -47,6 +47,38 @@
   const TYPE_NAMES = { text: "Text box", highlight: "Highlight", ink: "Drawing", whiteout: "Whiteout", note: "Sticky note", rect: "Rectangle", ellipse: "Ellipse", line: "Line", arrow: "Arrow", image: "Image", stamp: "Stamp" };
 
   // ---------- helpers ----------
+  // ---- icons: App.icon SVGs (24px grid, 1.5 stroke) with a few PDF-specific local paths ----
+  const LOCAL_ICONS = {
+    rect: "M4 6h16v12H4z", ellipse: "M12 5c4.7 0 8.5 3.1 8.5 7s-3.8 7-8.5 7-8.5-3.1-8.5-7 3.8-7 8.5-7z", line: "M5 19L19 5",
+    arrow: "M5 19L19 5M10 5h9v9", fitWidth: "M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4", arrowDown: "M12 4.5v15M6 13.5l6 6 6-6",
+    move: "M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"
+  };
+  const ICON_FOR_LABEL = {
+    "Select": "cursor", "Hand": "hand", "Add text": "textbox", "Highlight": "highlighter", "Draw": "pen", "Whiteout": "eraser",
+    "Note": "comment", "Rectangle": "rect", "Ellipse": "ellipse", "Line": "line", "Arrow": "arrow",
+    "Move selected pages up": "chevronUp", "Move selected pages down": "chevronDown", "Undo": "undo", "Redo": "redo",
+    "Thumbnails": "grid", "Previous page": "chevronLeft", "Next page": "chevronRight", "Save": "save", "Save as": "saveAs",
+    "Print": "print", "Zoom out": "zoomOut", "Zoom in": "zoomIn", "Fit width": "fitWidth", "Fit page": "fit",
+    "Rotate view": "rotateRight", "Previous match": "chevronUp", "Next match": "chevronDown", "Delete item": "trash",
+    "Image": "image", "Sign": "signature", "Stamp": "stamp", "Apply to PDF": "check", "Rotate left": "rotateLeft",
+    "Rotate right": "rotateRight", "Delete pages": "trash", "Move up": "arrowUp", "Move down": "arrowDown",
+    "Select all": "selectAll", "Clear": "close", "Insert PDF": "merge", "Insert images": "image", "Extract": "upload",
+    "Split": "split", "Set password": "lock", "Remove password": "unlock", "Apply watermark": "watermark",
+    "Compress": "compress", "Fill form fields": "form", "Document properties": "info"
+  };
+  function svgIcon(name, size) {
+    size = size || 18;
+    const viaApp = window.App && typeof App.icon === "function" ? App.icon(name, { size }) : null;
+    if (viaApp) return viaApp;
+    if (!LOCAL_ICONS[name]) return null;
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    for (const [k, v] of Object.entries({ viewBox: "0 0 24 24", width: size, height: size, fill: "none", stroke: "currentColor", "stroke-width": "1.5", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false", class: "icon icon-" + name })) svg.setAttribute(k, String(v));
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", LOCAL_ICONS[name]);
+    svg.appendChild(path);
+    return svg;
+  }
   function el(tag, attrs, ...kids) {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs || {})) {
@@ -421,9 +453,14 @@
       const b = el("button", {
         type: "button", class: "tool-btn" + (o.big ? " big" : ""), title,
         "aria-label": o.iconOnly ? label : null, "aria-pressed": o.pressed != null ? String(o.pressed) : null,
-      }, el("span", { class: "ico", "aria-hidden": "true", text: ico }), o.iconOnly ? null : el("span", { class: "lbl", text: label }));
+      }, this.icoSpan(ico, label, o.big), o.iconOnly ? null : el("span", { class: "lbl", text: label }));
       b.addEventListener("click", (e) => fn(e));
       return b;
+    }
+    icoSpan(ico, label, big) {
+      const name = ICON_FOR_LABEL[label];
+      const svg = name ? svgIcon(name, big ? 22 : 18) : null;
+      return svg ? el("span", { class: "ico", "aria-hidden": "true" }, svg) : el("span", { class: "ico ico-text", "aria-hidden": "true", text: ico });
     }
     group(label, ...items) {
       return el("div", { class: "tool-group", role: "group", "aria-label": label },
@@ -481,7 +518,7 @@
       this.sideBody = el("div", { class: "pdfe-side-body" });
       this.side = el("aside", { class: "panel-side right pdfe-side", "aria-labelledby": this.sideTitle.id, hidden: true },
         el("div", { class: "pdfe-side-head" }, this.sideTitle,
-          el("button", { type: "button", class: "icon-btn", "aria-label": "Close panel", title: "Close panel (Esc)", text: "✕", onclick: () => this.closeSide() })),
+          el("button", { type: "button", class: "icon-btn", "aria-label": "Close panel", title: "Close panel (Esc)", onclick: () => this.closeSide() }, svgIcon("close", 16) || "×")),
         this.sideBody);
       this.side.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.stopPropagation(); this.closeSide(); } });
       const main = el("div", { class: "editor-main" }, this.thumbsPanel, this.scroller, this.side);
@@ -489,7 +526,7 @@
       // status bar
       this.stPage = el("span", { text: "Page – of –" });
       this.stZoom = el("span", { text: "100%" });
-      this.stProt = el("span", { hidden: true, text: "🔒 Saved with password" });
+      this.stProt = el("span", { hidden: true, class: "pdfe-st-prot" }, svgIcon("lock", 14) || "", " Saved with password");
       this.stHint = el("span", { class: "pdfe-hint", "aria-live": "polite" });
       const status = el("div", { class: "statusbar" }, this.stPage, this.stZoom, this.stProt, this.stHint);
 
@@ -1098,7 +1135,7 @@
         this.addObj({ page: P.index, type: "text", x, y: clamp(y - fs * 0.6, 0, ph - fs * 1.2), w: Math.max(40, Math.min(240, pw - x)), h: fs * 1.2, text: "", font: this.props.font, fontSize: fs, color: this.props.text }, { edit: true });
         this.setTool("select");
         this.selectObj(this.objs[this.objs.length - 1].id);
-        this.hint("Type your text. Esc finishes editing; drag the ✥ handle or use arrow keys to move the box.");
+        this.hint("Type your text. Esc finishes editing; drag the move handle or use arrow keys to move the box.");
         return;
       }
       if (tool === "note") {
@@ -1293,7 +1330,7 @@
         ta.addEventListener("keydown", (e) => {
           if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); d.focus(); this.hint("Editing finished. " + this.describe(o)); }
         });
-        const grip = el("div", { class: "pdfe-grip", "aria-hidden": "true", title: "Drag to move", text: "✥" });
+        const grip = el("div", { class: "pdfe-grip", "aria-hidden": "true", title: "Drag to move" }, svgIcon("move", 14) || "+");
         d.append(grip, ta);
         requestAnimationFrame(autosize);
       } else {
@@ -2005,7 +2042,7 @@
 
   App.registerEditor("pdf", {
     label: "PDF",
-    icon: "📕",
+    icon: "pdf",
     extensions: [".pdf"],
     async create(container, doc) {
       const ed = new PdfEditor(container, doc);

@@ -27,6 +27,25 @@
   const MARGINS = { normal: { y: 1, x: 1 }, narrow: { y: 0.5, x: 0.5 }, wide: { y: 1, x: 2 } };
   const BLOCK_SEL = 'p,h1,h2,h3,h4,h5,h6,blockquote,pre,li,div,td,th';
   const SAVE_EXTS = ['.docx', '.txt', '.md', '.html'];
+  // binary formats converted on the server to the docx HTML dialect (v2)
+  const CONVERTERS = { '.docx': '/api/docx/to-html', '.doc': '/api/doc/to-html', '.dot': '/api/doc/to-html' };
+  // Word 97-2003 files are read-only formats here: saving writes a .docx instead.
+  const LEGACY_EXTS = ['.doc', '.dot'];
+  const ICON_FOR_LABEL = {
+    'Save': 'save', 'Save As': 'saveAs', 'Print / Save as PDF': 'print', 'Download copy': 'download', 'Word count': 'wordCount',
+    'Undo': 'undo', 'Redo': 'redo', 'Cut': 'cut', 'Copy': 'copy', 'Paste as plain text': 'paste',
+    'Grow font': 'fontGrow', 'Shrink font': 'fontShrink', 'Bold': 'bold', 'Italic': 'italic', 'Underline': 'underline',
+    'Strikethrough': 'strike', 'Superscript': 'superscript', 'Subscript': 'subscript', 'Clear formatting': 'clearFormat',
+    'Text color': 'fontColor', 'Highlight color': 'highlight', 'Bullets': 'bulletList', 'Numbering': 'numberList',
+    'Decrease indent': 'outdent', 'Increase indent': 'indent', 'Align left': 'alignLeft', 'Center': 'alignCenter',
+    'Align right': 'alignRight', 'Justify': 'alignJustify', 'Find': 'find', 'Replace': 'replace', 'Select all': 'selectAll',
+    'Table': 'table', 'Picture': 'image', 'Picture (browse device)': 'upload', 'Link': 'link', 'Remove link': 'unlink',
+    'Horizontal line': 'hr', 'Page break': 'pageBreak', 'Date & time': 'date', 'Symbol': 'symbol', 'Special character': 'symbol',
+    'Read mode': 'eye', 'Dark page': 'layers', 'Zoom out': 'zoomOut', 'Zoom in': 'zoomIn', '100%': 'fit',
+    'Insert row above': 'plus', 'Insert row below': 'plus', 'Insert column left': 'plus', 'Insert column right': 'plus',
+    'Delete row': 'minus', 'Delete column': 'minus', 'Delete table': 'trash', 'Alt text': 'comment', 'Delete picture': 'trash',
+    'Close find panel': 'close', 'Previous': 'chevronUp', 'Next': 'chevronDown'
+  };
   let editorCounter = 0;
 
   /* ---------- small helpers ---------- */
@@ -276,7 +295,10 @@
     let dirty = false;
     let savedRange = null;
     let zoom = 100;
-    let layout = { margin: 'normal', orient: 'portrait', size: 'letter' };
+    // custom: page geometry read from a .docx (inches, portrait w/h), used when size/margin === 'custom'
+    let layout = { margin: 'normal', orient: 'portrait', size: 'letter', custom: null };
+    // docMeta: settings of a converted .docx wrapper (div.docx-doc), kept for saving
+    let docMeta = null;
     let loading = true;
     let readMode = false;
     let selectedImg = null;
@@ -286,16 +308,30 @@
     let editor;           // public object
 
     /* ---- DOM ---- */
-    const root = h('div', { class: 'word-editor', id: uid });
+    const root = h('div', { class: 'word-editor editor-root', id: uid });
     const body = h('div', {
       class: 'word-body', contenteditable: 'false', role: 'textbox', 'aria-multiline': 'true',
       'aria-label': 'Document body', spellcheck: 'true', tabindex: '0'
     });
-    const page = h('div', { class: 'word-page' }, body);
+    // header/footer of a converted .docx: shown read-only around the body, saved back unchanged
+    const hdrEl = h('div', { class: 'word-hf word-header', role: 'region', 'aria-label': 'Page header (read-only)', hidden: true });
+    const ftrEl = h('div', { class: 'word-hf word-footer', role: 'region', 'aria-label': 'Page footer (read-only)', hidden: true });
+    [hdrEl, ftrEl].forEach(el => { el.style.cssText = 'position:absolute;left:var(--pad-l,1in);right:var(--pad-r,1in);opacity:.75;pointer-events:none;overflow:hidden'; });
+    hdrEl.style.top = 'var(--hdr-dist,0.5in)';
+    ftrEl.style.bottom = 'var(--ftr-dist,0.5in)';
+    const page = h('div', { class: 'word-page' }, hdrEl, body, ftrEl);
+    page.style.position = 'relative';
     const canvas = h('div', { class: 'word-canvas' }, page);
     const exitRead = h('button', { type: 'button', class: 'tool-btn word-exit-read', hidden: true, title: 'Exit read mode (Esc)', onclick: () => setReadMode(false) }, 'Exit read mode');
     canvas.appendChild(exitRead);
 
+    // Ribbon glyph: an App.icon SVG chosen by the button label (falls back to the text glyph).
+    function toolIcon(o) {
+      const name = o.iconName || ICON_FOR_LABEL[o.label];
+      const svg = name && window.App && typeof App.icon === 'function' ? App.icon(name, { size: o.big ? 22 : 18 }) : null;
+      if (svg) return h('span', { class: 'ico', 'aria-hidden': 'true' }, svg);
+      return h('span', { class: 'ico ico-text', 'aria-hidden': 'true', style: o.iconStyle || null }, o.icon);
+    }
     function btn(o) {
       const title = o.title || o.label;
       const b = h('button', {
@@ -305,7 +341,7 @@
         'aria-keyshortcuts': o.aria || null,
         'aria-pressed': o.toggle || o.pressable ? 'false' : null
       },
-      o.icon ? h('span', { class: 'ico', 'aria-hidden': 'true', style: o.iconStyle || null }, o.icon) : null,
+      o.icon ? toolIcon(o) : null,
       o.iconOnly ? null : h('span', { class: 'lbl' }, o.label));
       b.addEventListener('mousedown', e => e.preventDefault()); // keep the document selection
       b.addEventListener('click', () => { Promise.resolve().then(() => o.run()).catch(err => App.toast((o.errPrefix || '') + (err.message || String(err)), 'error')); });
@@ -326,12 +362,15 @@
     function colorPair(label, cmd, initial, icon) {
       const input = h('input', { type: 'color', class: 'tool-input word-color', value: initial, 'aria-label': label + ' - choose color', title: label + ' - choose color' });
       const b = btn({ icon, label: label, iconOnly: true, iconStyle: 'border-bottom:4px solid ' + initial, run: () => applyColor() });
+      const bar = h('span', { class: 'word-colorbar', 'aria-hidden': 'true' });
+      bar.style.background = initial;
+      b.querySelector('.ico').appendChild(bar);
       function applyColor() {
         const v = input.value;
         if (cmd === 'hiliteColor') { restoreSel(); exec('styleWithCSS', true); if (!document.execCommand('hiliteColor', false, v)) document.execCommand('backColor', false, v); afterEdit(); }
         else cmd2(cmd, v, true);
       }
-      input.addEventListener('change', () => { b.querySelector('.ico').style.borderBottomColor = input.value; applyColor(); });
+      input.addEventListener('change', () => { b.querySelector('.ico').style.borderBottomColor = input.value; bar.style.background = input.value; applyColor(); });
       return [b, input];
     }
 
@@ -687,7 +726,9 @@
     function setLineSpacing(v) {
       if (loading || readMode) return;
       restoreSel();
-      selectedBlocks().forEach(b => { b.style.lineHeight = v; });
+      // HTML line-height = Word line multiple x 1.15 (Word "single" is ~1.15 of the font size)
+      const css = v ? String(Math.round(parseFloat(v) * 1.15 * 10000) / 10000) : '';
+      selectedBlocks().forEach(b => { b.style.lineHeight = css; });
       afterEdit();
     }
     function indent(dir) {
@@ -945,14 +986,92 @@
       if (!show && act && act.id === id) selectTab('home');
     }
 
+    /* ---- converted documents (.docx HTML dialect v2: div.docx-doc wrapper) ---- */
+    function ensureOption(select, value, label) {
+      let o = select.querySelector('option[value="' + value + '"]');
+      if (!o) { o = h('option', { value }); select.appendChild(o); }
+      o.textContent = label;
+    }
+    // applyConverted unwraps a div.docx-doc wrapper: applies the document's page
+    // size, margins, default font and header/footer, and returns the body HTML.
+    function applyConverted(html) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      const wrap = tmp.children.length === 1 && tmp.firstElementChild.classList.contains('docx-doc') ? tmp.firstElementChild : null;
+      if (!wrap) return html;
+      const d = wrap.dataset;
+      const inch = v => Math.round((parseFloat(v) || 0) / 1440 * 1000) / 1000;
+      docMeta = { font: d.font || '', fontSize: d.fontSize || '', tab: d.tab || '', headerDist: d.headerDist || '', footerDist: d.footerDist || '' };
+      const w = inch(d.pageW) || 8.5, hh = inch(d.pageH) || 11;
+      layout.orient = d.orient === 'landscape' || w > hh ? 'landscape' : 'portrait';
+      const pw = Math.min(w, hh), ph = Math.max(w, hh);
+      const c = layout.custom = { w: pw, h: ph, top: inch(d.marginTop || 1440), right: inch(d.marginRight || 1440), bottom: inch(d.marginBottom || 1440), left: inch(d.marginLeft || 1440) };
+      const near = (a, b) => Math.abs(a - b) < 0.03;
+      layout.size = Object.keys(PAGE_SIZES).find(k => near(PAGE_SIZES[k].w, pw) && near(PAGE_SIZES[k].h, ph)) || 'custom';
+      layout.margin = Object.keys(MARGINS).find(k => near(MARGINS[k].y, c.top) && near(MARGINS[k].y, c.bottom) && near(MARGINS[k].x, c.left) && near(MARGINS[k].x, c.right)) || 'custom';
+      const cm = v => Math.round(v * 2.54 * 100) / 100;
+      if (layout.size === 'custom') ensureOption(sizePageSel, 'custom', 'Document (' + cm(pw) + ' × ' + cm(ph) + ' cm)');
+      if (layout.margin === 'custom') ensureOption(marginSel, 'custom', 'Document (' + [c.top, c.right, c.bottom, c.left].map(cm).join(' / ') + ' cm)');
+      sizePageSel.value = layout.size; marginSel.value = layout.margin; orientSel.value = layout.orient;
+      if (d.headerDist) page.style.setProperty('--hdr-dist', inch(d.headerDist) + 'in');
+      if (d.footerDist) page.style.setProperty('--ftr-dist', inch(d.footerDist) + 'in');
+      // default font of the document (paragraphs also carry explicit fonts)
+      if (d.font) body.style.fontFamily = "'" + d.font.replace(/['";<>]/g, '') + "', serif";
+      if (parseFloat(d.fontSize) > 0) body.style.fontSize = parseFloat(d.fontSize) + 'pt';
+      if (parseFloat(d.tab) > 0) body.style.tabSize = parseFloat(d.tab) + 'pt';
+      body.style.lineHeight = '1.15';
+      [['header.docx-header', hdrEl], ['footer.docx-footer', ftrEl]].forEach(([q, el]) => {
+        const part = Array.from(wrap.children).find(x => x.matches(q));
+        el.innerHTML = part ? part.innerHTML : '';
+        el.hidden = !part;
+        if (part) part.remove();
+      });
+      applyLayout();
+      return wrap.innerHTML;
+    }
+    // wrapForSave puts the page setup (and, for converted documents, the
+    // default font and header/footer) around the body HTML for /api/docx/from-html.
+    function wrapForSave(html) {
+      const g = pageGeom();
+      const tw = v => Math.round(v * 1440);
+      const attrs = { 'data-page-w': tw(g.w), 'data-page-h': tw(g.h), 'data-margin-top': tw(g.top), 'data-margin-right': tw(g.right),
+        'data-margin-bottom': tw(g.bottom), 'data-margin-left': tw(g.left), 'data-orient': layout.orient };
+      let inner = '';
+      if (docMeta) {
+        if (docMeta.headerDist) attrs['data-header-dist'] = docMeta.headerDist;
+        if (docMeta.footerDist) attrs['data-footer-dist'] = docMeta.footerDist;
+        if (docMeta.font) attrs['data-font'] = docMeta.font;
+        if (docMeta.fontSize) attrs['data-font-size'] = docMeta.fontSize;
+        if (docMeta.tab) attrs['data-tab'] = docMeta.tab;
+        if (!hdrEl.hidden) inner += '<header class="docx-header">' + hdrEl.innerHTML + '</header>';
+        if (!ftrEl.hidden) inner += '<footer class="docx-footer">' + ftrEl.innerHTML + '</footer>';
+      }
+      const a = Object.keys(attrs).map(k => k + '="' + escapeHtml(String(attrs[k])) + '"').join(' ');
+      return '<div class="docx-doc" ' + a + '>' + inner + html + '</div>';
+    }
+
     /* ---- layout / view ---- */
-    function applyLayout() {
-      const ps = PAGE_SIZES[layout.size], mg = MARGINS[layout.margin];
+    // pageGeom returns the effective page size and margins in inches (oriented).
+    function pageGeom() {
+      const c = layout.custom;
+      const ps = layout.size === 'custom' && c ? { w: c.w, h: c.h, css: c.w + 'in ' + c.h + 'in' } : PAGE_SIZES[layout.size] || PAGE_SIZES.letter;
+      const mg = layout.margin === 'custom' && c ? { top: c.top, right: c.right, bottom: c.bottom, left: c.left }
+        : (m => ({ top: m.y, right: m.x, bottom: m.y, left: m.x }))(MARGINS[layout.margin] || MARGINS.normal);
       const land = layout.orient === 'landscape';
-      page.style.setProperty('--page-w', (land ? ps.h : ps.w) + 'in');
-      page.style.setProperty('--page-h', (land ? ps.w : ps.h) + 'in');
-      page.style.setProperty('--pad-y', mg.y + 'in');
-      page.style.setProperty('--pad-x', mg.x + 'in');
+      const w = land ? Math.max(ps.w, ps.h) : Math.min(ps.w, ps.h);
+      const hh = land ? Math.min(ps.w, ps.h) : Math.max(ps.w, ps.h);
+      const sizeCss = layout.size === 'custom' ? w + 'in ' + hh + 'in' : ps.css + ' ' + layout.orient;
+      return { w, h: hh, sizeCss, ...mg };
+    }
+    function applyLayout() {
+      const g = pageGeom();
+      page.style.setProperty('--page-w', g.w + 'in');
+      page.style.setProperty('--page-h', g.h + 'in');
+      page.style.setProperty('--pad-y', (g.top + g.bottom) / 2 + 'in');
+      page.style.setProperty('--pad-x', (g.left + g.right) / 2 + 'in');
+      page.style.setProperty('--pad-l', g.left + 'in');
+      page.style.setProperty('--pad-r', g.right + 'in');
+      page.style.padding = g.top + 'in ' + g.right + 'in ' + g.bottom + 'in ' + g.left + 'in';
       scheduleStatus();
     }
     function setZoom(z) {
@@ -985,9 +1104,8 @@
       const chars = text.replace(/[\n​]/g, '').length;
       const charsNoSpace = text.replace(/[\s​]/g, '').length;
       const paras = Array.from(body.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,blockquote,pre')).filter(p => p.textContent.trim()).length;
-      const ps = PAGE_SIZES[layout.size], mg = MARGINS[layout.margin];
-      const land = layout.orient === 'landscape';
-      const contentPx = ((land ? ps.w : ps.h) - 2 * mg.y) * 96;
+      const g = pageGeom();
+      const contentPx = (g.h - g.top - g.bottom) * 96;
       const breaks = body.querySelectorAll('hr.page-break').length;
       const pages = Math.max(1, Math.ceil(body.scrollHeight / contentPx)) + breaks;
       return { words, chars, charsNoSpace, paras, pages, contentPx };
@@ -1054,7 +1172,8 @@
       if (key === 'h1' && block.classList.contains('title')) key = 'title';
       if (block && block.closest('blockquote') && body.contains(block.closest('blockquote'))) key = 'blockquote';
       for (const k in styleBtns) styleBtns[k].setAttribute('aria-pressed', String(k === key));
-      const lh = block && block.style.lineHeight;
+      const lhCss = block && parseFloat(block.style.lineHeight);
+      const lh = lhCss && /^[\d.]+$/.test(block.style.lineHeight) ? String(Math.round(lhCss / 1.15 * 100) / 100) : '';
       spacingSel.value = ['1', '1.15', '1.5', '2'].includes(lh) ? lh : '';
       setContextTab('table', !!closestIn(r.startContainer, 'table'));
       const img = r.startContainer.nodeType === 1 && r.startContainer.childNodes[r.startOffset] && r.startContainer.childNodes[r.startOffset].tagName === 'IMG' && !r.collapsed ? r.startContainer.childNodes[r.startOffset] : null;
@@ -1294,7 +1413,7 @@
     async function serialize(fmt) {
       const { html, root: clone } = cleanHtml();
       if (fmt === 'docx') {
-        const res = await App.api.postBytes('/api/docx/from-html', new TextEncoder().encode(JSON.stringify({ html })), 'application/json');
+        const res = await App.api.postBytes('/api/docx/from-html', new TextEncoder().encode(JSON.stringify({ html: wrapForSave(html) })), 'application/json');
         return { bytes: new Uint8Array(await res.arrayBuffer()), mime: DOCX_MIME };
       }
       if (fmt === 'txt') {
@@ -1326,7 +1445,7 @@
     }
     async function save() {
       if (loading) return false;
-      if (!docPath) return saveAs();
+      if (!docPath || LEGACY_EXTS.includes(extOf(docPath))) return saveAs();
       try {
         docPath = await writeTo(docPath);
         doc.path = docPath;
@@ -1343,7 +1462,8 @@
       let p = await App.pickFile({ mode: 'save', extensions: SAVE_EXTS, suggestedName: suggested });
       if (!p) return false;
       if (Array.isArray(p)) p = p[0];
-      if (![...SAVE_EXTS, '.htm', '.markdown'].includes(extOf(p))) p += '.docx';
+      if (LEGACY_EXTS.includes(extOf(p))) p = stripExt(p) + '.docx';
+      else if (![...SAVE_EXTS, '.htm', '.markdown'].includes(extOf(p))) p += '.docx';
       const fmt = formatFor(p);
       if ((fmt === 'txt' || fmt === 'md') && body.querySelector('img,table,span[style],font,[style*="color"]')) {
         const ok = await App.confirm(fmt === 'txt'
@@ -1358,7 +1478,9 @@
         doc.name = docName;
         App.setTitle(editor, docName);
         setClean();
-        App.toast('Saved as ' + docName, 'success');
+        App.toast(LEGACY_EXTS.includes(ext) && extOf(docName) === '.docx'
+          ? 'Saved as ' + docName + '. Word 97-2003 (.doc) files are saved in the newer .docx format; the original file was not changed.'
+          : 'Saved as ' + docName, 'success');
         return true;
       } catch (err) { return fail(err); }
     }
@@ -1371,10 +1493,11 @@
     }
     function printDoc() {
       const { html } = cleanHtml();
-      const ps = PAGE_SIZES[layout.size], mg = MARGINS[layout.margin];
+      const g = pageGeom();
       const pr = h('div', { id: 'word-print-root', class: 'word-print-root' });
       pr.innerHTML = html;
-      const style = h('style', { id: 'word-print-style' }, '@page { size: ' + ps.css + ' ' + layout.orient + '; margin: ' + mg.y + 'in ' + mg.x + 'in; }');
+      ['fontFamily', 'fontSize', 'tabSize'].forEach(k => { if (body.style[k]) pr.style[k] = body.style[k]; });
+      const style = h('style', { id: 'word-print-style' }, '@page { size: ' + g.sizeCss + '; margin: ' + g.top + 'in ' + g.right + 'in ' + g.bottom + 'in ' + g.left + 'in; }');
       document.getElementById('word-print-root')?.remove();
       document.getElementById('word-print-style')?.remove();
       document.head.appendChild(style);
@@ -1523,10 +1646,10 @@
       let html = '<p><br></p>';
       try {
         if (doc.bytes && doc.bytes.length) {
-          if (ext === '.docx') {
-            const res = await App.api.postBytes('/api/docx/to-html', doc.bytes, DOCX_MIME);
+          if (CONVERTERS[ext]) {
+            const res = await App.api.postBytes(CONVERTERS[ext], doc.bytes, 'application/octet-stream');
             const j = await res.json();
-            html = sanitizeHtml(j.html || '') || '<p><br></p>';
+            html = applyConverted(sanitizeHtml(j.html || '')) || '<p><br></p>';
           } else {
             const text = new TextDecoder('utf-8').decode(doc.bytes).replace(/^﻿/, '');
             if (ext === '.md' || ext === '.markdown') html = sanitizeHtml(mdToHtml(text));
@@ -1574,8 +1697,8 @@
   function register() {
     window.App.registerEditor('word', {
       label: 'Document',
-      icon: '\u{1F4C4}',
-      extensions: ['.docx', '.txt', '.md', '.html', '.htm'],
+      icon: 'doc',
+      extensions: ['.docx', '.doc', '.dot', '.txt', '.md', '.html', '.htm'],
       create: createWordEditor
     });
   }

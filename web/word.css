@@ -1,6 +1,9 @@
 /* DocStudio - Word-like editor styles. Uses tokens from app.css; everything scoped under .word-editor. */
 
 .word-editor {
+  --accent: var(--ft-word, #2b579a);
+  --accent-text: #ffffff;
+  --canvas-bg: color-mix(in srgb, var(--bg) 94%, var(--text));
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -9,18 +12,24 @@
   color: var(--text);
 }
 
+:root[data-theme="dark"] .word-editor { --accent-text: #161514; --canvas-bg: color-mix(in srgb, var(--bg) 80%, #000); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .word-editor, :root[data-theme="system"] .word-editor { --accent-text: #161514; --canvas-bg: color-mix(in srgb, var(--bg) 80%, #000); }
+}
+:root[data-theme="hc"] .word-editor { --accent: #ffff00; --accent-text: #000000; --canvas-bg: #000000; }
+
 /* ---------- ribbon additions ---------- */
 .word-editor .word-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
-  gap: 4px;
+  gap: 2px;
 }
 .word-editor .tool-group-items {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 .word-editor .tool-group:has(.tool-row) .tool-group-items {
   flex-direction: column;
@@ -33,24 +42,33 @@
   gap: 2px;
 }
 .word-editor .tool-btn {
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 32px;
+  min-height: 32px;
 }
 .word-editor .tool-btn.big {
   flex-direction: column;
-  min-width: 56px;
+  min-width: 52px;
 }
 .word-editor .ico {
-  display: inline-block;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 1.2em;
-  text-align: center;
   line-height: 1.1;
 }
+.word-editor .ico-text { font-weight: 600; }
+.word-editor .ico:has(svg) { border-bottom: 0 !important; }
+.word-editor .word-colorbar {
+  position: absolute; left: 1px; right: 1px; bottom: -3px; height: 4px; border-radius: 1px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 25%, transparent);
+}
+.word-editor .ico-text .word-colorbar { display: none; }
 .word-editor .tool-select,
 .word-editor .word-input {
-  min-height: 36px;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
+  min-height: 32px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong, var(--border));
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
@@ -58,42 +76,13 @@
 }
 .word-editor .word-font-select { width: 11em; }
 .word-editor .word-color {
-  width: 28px;
-  height: 36px;
+  width: 24px;
+  height: 32px;
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   cursor: pointer;
-}
-.word-editor .word-al .ico {
-  display: inline-block;
-  width: 18px;
-  height: 14px;
-  min-width: 0;
-  font-size: 0;
-  background: linear-gradient(currentColor, currentColor) 0 0px / 100% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 0 4px / 60% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 0 8px / 100% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 0 12px / 60% 2px no-repeat;
-}
-.word-editor .word-al-center .ico {
-  background: linear-gradient(currentColor, currentColor) 50% 0px / 100% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 50% 4px / 60% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 50% 8px / 100% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 50% 12px / 60% 2px no-repeat;
-}
-.word-editor .word-al-right .ico {
-  background: linear-gradient(currentColor, currentColor) 100% 0px / 100% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 100% 4px / 60% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 100% 8px / 100% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 100% 12px / 60% 2px no-repeat;
-}
-.word-editor .word-al-justify .ico {
-  background: linear-gradient(currentColor, currentColor) 0 0px / 100% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 0 4px / 100% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 0 8px / 100% 2px no-repeat,
-    linear-gradient(currentColor, currentColor) 0 12px / 100% 2px no-repeat;
 }
 
 .word-editor .word-styles {
@@ -122,12 +111,13 @@
 .word-editor .word-field .tool-select { color: var(--text); font-size: 1rem; }
 
 .word-editor .ribbon-tab-contextual {
-  border-top: 3px solid var(--accent);
+  color: var(--accent);
+  box-shadow: inset 0 2px 0 var(--accent);
 }
 
 .word-editor :focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 /* ---------- main area ---------- */
@@ -141,9 +131,7 @@
   flex: 1 1 auto;
   overflow: auto;
   padding: 24px 16px 48px;
-  background: var(--bg);
-  /* slightly darker canvas than the page area, derived from tokens */
-  background-image: linear-gradient(color-mix(in srgb, var(--text) 6%, transparent), color-mix(in srgb, var(--text) 6%, transparent));
+  background: var(--canvas-bg);
 }
 
 .word-editor .word-page {
@@ -159,7 +147,7 @@
   padding: var(--pad-y) var(--pad-x);
   background: #ffffff;
   color: #000000;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
   /* repeating faint line where a new sheet would begin */
   background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--page-h) - 1px), #d0d0d0 calc(var(--page-h) - 1px), #d0d0d0 var(--page-h));
 }
@@ -177,9 +165,11 @@
 .word-editor .word-body:focus-visible {
   outline: none;
 }
+/* quiet but visible focus: a thin accent edge instead of a thick ring around the whole page */
 .word-editor .word-page:focus-within {
-  box-shadow: 0 0 0 3px var(--focus), 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent), 0 2px 8px rgba(0, 0, 0, 0.08);
 }
+:root[data-theme="hc"] .word-editor .word-page:focus-within { box-shadow: 0 0 0 2px var(--focus); }
 
 /* document content (page colors are fixed: the page is paper) */
 .word-editor .word-body p { margin: 0 0 8pt; }
@@ -299,7 +289,7 @@
 .word-editor .word-statusbar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .word-editor .word-st-spacer { flex: 1 1 auto; }
