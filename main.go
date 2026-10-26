@@ -1,4 +1,5 @@
-// DocStudio is a local document editor for PDF, DOCX and text files.
+// DocStudio is a local document editor for PDF, Word (DOCX) and PowerPoint
+// (PPTX) files and plain text.
 // It runs a small HTTP server on 127.0.0.1 and opens the UI in the browser.
 package main
 
@@ -18,9 +19,11 @@ import (
 	"sync"
 	"time"
 
+	"docstudio/internal/doc"
 	"docstudio/internal/docx"
 	"docstudio/internal/fsapi"
 	"docstudio/internal/pdfops"
+	"docstudio/internal/pptx"
 )
 
 //go:embed all:web
@@ -40,7 +43,9 @@ func main() {
 	mux := http.NewServeMux()
 	fsapi.Register(mux)
 	docx.Register(mux)
+	doc.Register(mux)
 	pdfops.Register(mux)
+	pptx.Register(mux)
 	ping, bye := lifetime(!*noBrowser)
 	mux.HandleFunc("POST /api/ping", ping)
 	mux.HandleFunc("POST /api/bye", bye)
